@@ -16,4 +16,6 @@ class PostListView(generics.ListCreateAPIView):
 class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
-    permission_classes = [IsAuthenticated & PostUserWritePermission]
+    permission_classes = [
+        IsAuthenticatedOrReadOnly & PostUserWritePermission
+    ]
