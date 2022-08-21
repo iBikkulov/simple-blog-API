@@ -3,6 +3,8 @@ from django.urls import path, include
 from rest_framework_simplejwt.views import (
     TokenObtainPairView, TokenRefreshView, TokenVerifyView
 )
+from rest_framework.documentation import include_docs_urls
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -19,4 +21,6 @@ urlpatterns = [
          name='token_refresh'),
     path('api/token/verify/', TokenVerifyView.as_view(),
          name='token_verify'),
+     # Documentation
+     path('docs/', include_docs_urls(title='BlogAPI')),
 ]
