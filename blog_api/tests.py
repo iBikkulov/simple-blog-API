@@ -2,6 +2,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from django.contrib.auth.models import User
+from users.models import NewUser
 from blog.models import Category, Post
 
 
@@ -9,9 +10,12 @@ def get_password():
     return '12341234'
 
 
-def create_user(username):
+def create_user(user_name, email):
     password = get_password()
-    return User.objects.create_user(username=username, password=password)
+    return NewUser.objects.create_user(user_name=user_name,
+                                       email=email,
+                                       first_name='first_name',
+                                       password=password)
 
 
 def create_category(name):
@@ -21,7 +25,8 @@ def create_category(name):
 def create_post(user):
     id = user.id
     return Post.objects.create(author_id=id, category_id=1, content='test',
-        excerpt='test', slug='test', status='published', title='test')
+                               excerpt='test', slug='test', status='published',
+                               title='test')
 
 
 class PostTests(APITestCase):
@@ -38,32 +43,51 @@ class PostTests(APITestCase):
         """
         Ensure only authenticated users can create posts.
         """
-        user = create_user(username='test_user')
+        user = create_user(user_name='test_user',
+                           email='test_user@example.com')
         password = get_password()
-        url = reverse('blog_api:listcreate')
+        auth_url = reverse('token_obtain_pair')
+        create_post_url = reverse('blog_api:listcreate')
 
         # Need to have at least one Category to be able
         # to create Post objects
         create_category(name='test_category')
 
-        self.client.login(username=user.username, password=password)
-        response = self.client.post(
-            url, {
-                'title': 'test',
-                'author': 1,
-                'excerpt': 'test',
-                'content': 'test',
-            }, format='json')
+        # Use JWT Authentication
+        response = self.client.post(auth_url, {
+            'email': user.email,
+            'password': password
+        })
+        self.assertTrue('access' in response.data)
+        access_token = response.data.get('access')
+
+        response = self.client.post(create_post_url, {
+            'title': 'test',
+            'author': 1,
+            'excerpt': 'test',
+            'content': 'test',
+        }, format='json', HTTP_AUTHORIZATION=f'JWT dummy_token')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        response = self.client.post(create_post_url, {
+            'title': 'test',
+            'author': 1,
+            'excerpt': 'test',
+            'content': 'test',
+        }, format='json', HTTP_AUTHORIZATION=f'JWT {access_token}')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_update_post(self):
         """
         Ensure only the author of the post can edit it.
         """
-        user1 = create_user(username='test_user1')  # id = 1
-        user2 = create_user(username='test_user2')  # id = 2
+        user1 = create_user(user_name='test_user1',
+                            email='test_user1@example.com')  # id = 1
+        user2 = create_user(user_name='test_user2',
+                            email='test_user2@example.com')  # id = 2
         password = get_password()
-        url = reverse(('blog_api:detailcreate'), kwargs={'pk': 1})
+        auth_url = reverse('token_obtain_pair')
+        detail_url = reverse(('blog_api:detailcreate'), kwargs={'pk': 1})
         client = APIClient()
 
         # Need to have at least one Category to be able
@@ -73,26 +97,38 @@ class PostTests(APITestCase):
         # Create Post object owned by the user1
         create_post(user=user1)
 
-        client.login(username=user2.username, password=password)
-        response = client.put(
-            url, {
-                'id': 1, # post id
-                'title': 'New',
-                'author': 1, # author id
-                'excerpt': 'New',
-                'content': 'New',
-                'status': 'published',
-            }, format='json')
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Use JWT Authentication for user1
+        response = self.client.post(auth_url, {
+            'email': user1.email,
+            'password': password
+        })
+        self.assertTrue('access' in response.data)
+        access_token_user1 = response.data.get('access')
 
-        client.login(username=user1.username, password=password)
-        response = client.put(
-            url, {
-                'id': 1, # post id
-                'title': 'New',
-                'author': 1, # author id
-                'excerpt': 'New',
-                'content': 'New',
-                'status': 'published',
-            }, format='json')
+        response = self.client.put(detail_url, {
+            'id': 1, # post id
+            'title': 'New1',
+            'author': 1, # author id
+            'excerpt': 'New1',
+            'content': 'New1',
+            'status': 'published',
+        }, format='json', HTTP_AUTHORIZATION=f'JWT {access_token_user1}')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Use JWT Authentication for user2
+        response = self.client.post(auth_url, {
+            'email': user2.email,
+            'password': password
+        })
+        self.assertTrue('access' in response.data)
+        access_token_user2 = response.data.get('access')
+
+        response = self.client.put(detail_url, {
+            'id': 1, # post id
+            'title': 'New2',
+            'author': 1, # author id
+            'excerpt': 'New2',
+            'content': 'New2',
+            'status': 'published',
+        }, format='json', HTTP_AUTHORIZATION=f'JWT {access_token_user2}')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
