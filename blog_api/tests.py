@@ -63,16 +63,14 @@ class PostTests(APITestCase):
 
         response = self.client.post(create_post_url, {
             'title': 'test',
-            'author': 1,
-            'excerpt': 'test',
+            'slug': 'test',
             'content': 'test',
         }, format='json', HTTP_AUTHORIZATION=f'JWT dummy_token')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
         response = self.client.post(create_post_url, {
             'title': 'test',
-            'author': 1,
-            'excerpt': 'test',
+            'slug': 'test',
             'content': 'test',
         }, format='json', HTTP_AUTHORIZATION=f'JWT {access_token}')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -106,12 +104,9 @@ class PostTests(APITestCase):
         access_token_user1 = response.data.get('access')
 
         response = self.client.put(detail_url, {
-            'id': 1, # post id
             'title': 'New1',
-            'author': 1, # author id
-            'excerpt': 'New1',
+            'slug': 'New1',
             'content': 'New1',
-            'status': 'published',
         }, format='json', HTTP_AUTHORIZATION=f'JWT {access_token_user1}')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -124,11 +119,8 @@ class PostTests(APITestCase):
         access_token_user2 = response.data.get('access')
 
         response = self.client.put(detail_url, {
-            'id': 1, # post id
             'title': 'New2',
-            'author': 1, # author id
-            'excerpt': 'New2',
+            'slug': 'New1',
             'content': 'New2',
-            'status': 'published',
         }, format='json', HTTP_AUTHORIZATION=f'JWT {access_token_user2}')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
